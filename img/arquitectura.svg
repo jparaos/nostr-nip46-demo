@@ -1,0 +1,156 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1010" viewBox="0 0 1500 1010" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#374151"/>
+    </marker>
+    <marker id="p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6d28d9"/>
+    </marker>
+    <style>
+      .zone-t { font-size: 16px; font-weight: 700; fill: #111827; }
+      .box { fill: #ffffff; stroke: #4b5563; stroke-width: 1.5; }
+      .key { fill: #fef3c7; stroke: #b45309; stroke-width: 2; }
+      .t  { font-size: 15px; font-weight: 600; fill: #111827; }
+      .s  { font-size: 12.5px; fill: #374151; }
+      .m  { font-size: 12px; fill: #374151; font-family: Consolas, monospace; }
+      .lbl { font-size: 12.5px; fill: #111827; font-weight: 600; }
+      .plbl { font-size: 12.5px; fill: #5b21b6; font-weight: 600; }
+      .ln { stroke: #374151; stroke-width: 1.8; fill: none; }
+      .pl { stroke: #6d28d9; stroke-width: 2; fill: none; }
+      .num { fill: #111827; }
+      .numt { fill: #ffffff; font-size: 12px; font-weight: 700; }
+    </style>
+  </defs>
+
+  <rect width="1500" height="1010" fill="#ffffff"/>
+  <text x="750" y="34" text-anchor="middle" font-size="22" font-weight="700" fill="#111827">Arquitectura: firmante NIP-46 local + login en Stacker News</text>
+
+  <!-- ===== Zonas ===== -->
+  <rect x="20"   y="80" width="160" height="710" rx="12" fill="#f3f4f6" stroke="#9ca3af"/>
+  <text x="100"  y="104" text-anchor="middle" class="zone-t">Usuario</text>
+
+  <rect x="230"  y="80" width="420" height="710" rx="12" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="440"  y="104" text-anchor="middle" class="zone-t">Aplicación local (Python)</text>
+
+  <rect x="860"  y="80" width="150" height="710" rx="12" fill="#f5f3ff" stroke="#8b5cf6"/>
+  <text x="935"  y="104" text-anchor="middle" class="zone-t">Relays Nostr</text>
+
+  <rect x="1220" y="80" width="260" height="710" rx="12" fill="#fff7ed" stroke="#f59e0b"/>
+  <text x="1236" y="104" class="zone-t">Stacker News</text>
+
+  <!-- ===== Usuario ===== -->
+  <circle cx="90" cy="150" r="20" fill="#6b7280"/>
+  <path d="M55,215 Q55,178 90,178 Q125,178 125,215 z" fill="#6b7280"/>
+  <text x="90" y="238" text-anchor="middle" class="s">persona usuaria</text>
+
+  <!-- ===== Componentes app local ===== -->
+  <rect x="260" y="125" width="360" height="80" rx="8" class="box"/>
+  <text x="440" y="150" text-anchor="middle" class="t">Interfaz local (CLI / HTML simple)</text>
+  <text x="440" y="172" text-anchor="middle" class="s">crear o importar clave · mostrar bunker://</text>
+  <text x="440" y="190" text-anchor="middle" class="s">aprobar o rechazar cada firma</text>
+
+  <rect x="260" y="250" width="360" height="80" rx="8" class="key"/>
+  <text x="440" y="275" text-anchor="middle" class="t">🔑 Keystore</text>
+  <text x="440" y="297" text-anchor="middle" class="s">nsec cifrado con frase de acceso</text>
+  <text x="440" y="315" text-anchor="middle" class="s">(archivo local · la clave nunca sale de aquí)</text>
+
+  <rect x="260" y="370" width="360" height="80" rx="8" class="box"/>
+  <text x="440" y="395" text-anchor="middle" class="t">Generador de conexión</text>
+  <text x="440" y="417" text-anchor="middle" class="m">bunker://&lt;pubkey&gt;?relay=wss://…</text>
+  <text x="440" y="435" text-anchor="middle" class="m">&amp;secret=&lt;aleatorio, 1 solo uso&gt;</text>
+
+  <rect x="260" y="480" width="360" height="150" rx="8" class="box" stroke="#1d4ed8" stroke-width="2.5"/>
+  <text x="440" y="505" text-anchor="middle" class="t">Firmante NIP-46</text>
+  <text x="440" y="528" text-anchor="middle" class="s">escucha kind 24133 con #p = pubkey firmante</text>
+  <text x="440" y="548" text-anchor="middle" class="s">valida secret · recuerda clientes autorizados</text>
+  <text x="440" y="568" text-anchor="middle" class="m">connect · get_public_key</text>
+  <text x="440" y="586" text-anchor="middle" class="m">sign_event · ping</text>
+  <text x="440" y="610" text-anchor="middle" class="s">cifrado NIP-44 (NIP-04 como respaldo)</text>
+
+  <!-- flechas internas -->
+  <line x1="440" y1="205" x2="440" y2="248" class="ln" marker-end="url(#a)"/>
+  <text x="450" y="232" class="s">guarda</text>
+  <line x1="440" y1="330" x2="440" y2="368" class="ln" marker-end="url(#a)"/>
+  <text x="450" y="354" class="s">pubkey</text>
+  <line x1="440" y1="450" x2="440" y2="478" class="ln" marker-end="url(#a)"/>
+  <text x="450" y="469" class="s">secret esperado</text>
+  <!-- keystore -> firmante (carril derecho) -->
+  <path d="M620,290 H636 V560 H622" class="ln" marker-end="url(#a)"/>
+  <text x="642" y="430" class="s" transform="rotate(90 642 430)" text-anchor="middle">firma con nsec</text>
+  <!-- aprobación (carril izquierdo) -->
+  <path d="M258,600 H244 V197 H258" class="ln" marker-start="url(#a)" marker-end="url(#a)"/>
+  <text x="238" y="390" class="lbl" transform="rotate(-90 238 390)" text-anchor="middle">7b · ¿aprobar firma?</text>
+
+  <!-- ===== Usuario <-> interfaz ===== -->
+  <line x1="125" y1="140" x2="258" y2="140" class="ln" marker-end="url(#a)"/>
+  <text x="128" y="133" class="lbl">1 crea / importa</text>
+  <line x1="258" y1="170" x2="125" y2="170" class="ln" marker-end="url(#a)"/>
+  <text x="128" y="188" class="lbl">2 ve bunker://</text>
+
+  <!-- ===== 4: usuario pega bunker:// en Stacker News ===== -->
+  <path d="M40,128 V62 H1420 V358" class="ln" stroke-dasharray="6 4" marker-end="url(#a)"/>
+  <text x="760" y="56" text-anchor="middle" class="lbl">4 copia la URL bunker:// y la pega en el login con Nostr de Stacker News</text>
+
+  <!-- ===== Relays ===== -->
+  <rect x="875" y="440" width="120" height="210" rx="8" class="box" stroke="#7c3aed"/>
+  <text x="935" y="466" text-anchor="middle" class="t">Relays</text>
+  <text x="935" y="490" text-anchor="middle" class="m">relay.nsec.app</text>
+  <text x="935" y="508" text-anchor="middle" class="m">relay.damus.io</text>
+  <text x="935" y="560" text-anchor="middle" class="s">eventos</text>
+  <text x="935" y="578" text-anchor="middle" class="s">kind 24133</text>
+  <text x="935" y="596" text-anchor="middle" class="s">cifrados</text>
+  <text x="935" y="624" text-anchor="middle" class="s">(no leen el</text><text x="935" y="640" text-anchor="middle" class="s">contenido)</text>
+
+  <!-- ===== Stacker News ===== -->
+  <rect x="1240" y="360" width="220" height="270" rx="8" class="box"/>
+  <text x="1350" y="386" text-anchor="middle" class="t">Navegador</text>
+  <text x="1350" y="406" text-anchor="middle" class="s">página de login con Nostr</text>
+  <text x="1350" y="436" text-anchor="middle" class="s">cliente NIP-46:</text>
+  <text x="1350" y="454" text-anchor="middle" class="s">genera clave cliente temporal</text>
+  <text x="1350" y="472" text-anchor="middle" class="s">y habla con el firmante</text>
+  <text x="1350" y="490" text-anchor="middle" class="s">vía relays</text>
+
+  <rect x="1240" y="680" width="220" height="90" rx="8" class="box"/>
+  <text x="1350" y="705" text-anchor="middle" class="t">Servidor Stacker News</text>
+  <text x="1350" y="727" text-anchor="middle" class="s">verifica firma y desafío</text>
+  <text x="1350" y="747" text-anchor="middle" class="s">crea cuenta / inicia sesión ✔</text>
+
+  <line x1="1350" y1="630" x2="1350" y2="678" class="ln" marker-end="url(#a)"/>
+  <text x="1358" y="660" class="lbl">8 evento firmado</text>
+
+  <!-- ===== Mensajes NIP-46 ===== -->
+  <!-- 3 suscripción -->
+  <line x1="622" y1="500" x2="873" y2="500" class="pl" marker-end="url(#p)"/>
+  <text x="700" y="494" class="plbl">3 suscripción (REQ)</text>
+
+  <!-- 5,6,7 tramo firmante <-> relays -->
+  <line x1="622" y1="540" x2="873" y2="540" class="pl" marker-start="url(#p)" marker-end="url(#p)"/>
+  <text x="700" y="534" class="plbl">5 connect ⇄ ack</text>
+  <line x1="622" y1="580" x2="873" y2="580" class="pl" marker-start="url(#p)" marker-end="url(#p)"/>
+  <text x="700" y="574" class="plbl">6 get_public_key ⇄ pubkey</text>
+  <line x1="622" y1="620" x2="873" y2="620" class="pl" marker-start="url(#p)" marker-end="url(#p)"/>
+  <text x="700" y="614" class="plbl">7 sign_event ⇄ firmado</text>
+
+  <!-- 5,6,7 tramo relays <-> Stacker News -->
+  <line x1="997" y1="540" x2="1238" y2="540" class="pl" marker-start="url(#p)" marker-end="url(#p)"/>
+  <text x="1012" y="534" class="plbl">5 connect(secret) ⇄ ack</text>
+  <line x1="997" y1="580" x2="1238" y2="580" class="pl" marker-start="url(#p)" marker-end="url(#p)"/>
+  <text x="1012" y="574" class="plbl">6 get_public_key ⇄ pubkey</text>
+  <line x1="997" y1="620" x2="1238" y2="620" class="pl" marker-start="url(#p)" marker-end="url(#p)"/>
+  <text x="1012" y="614" class="plbl">7 sign_event(desafío) ⇄ firmado</text>
+
+  <!-- ===== Leyenda ===== -->
+  <rect x="20" y="815" width="1460" height="180" rx="12" fill="#f9fafb" stroke="#d1d5db"/>
+  <text x="40" y="842" font-size="15" font-weight="700" fill="#111827">Flujo paso a paso</text>
+  <g font-size="13" fill="#1f2937">
+    <text x="40"  y="870">1. El usuario crea o importa su clave secreta (nsec); el keystore la guarda cifrada.</text>
+    <text x="40"  y="894">2. La app genera la URL bunker:// con la pubkey del firmante, los relays y un secret de un solo uso.</text>
+    <text x="40"  y="918">3. El firmante se suscribe en los relays a eventos kind 24133 dirigidos a su pubkey.</text>
+    <text x="40"  y="942">4. El usuario pega la URL bunker:// en la página de login con Nostr de Stacker News.</text>
+    <text x="760" y="870">5. Stacker News envía connect con el secret; el firmante lo valida, lo invalida y responde "ack".</text>
+    <text x="760" y="894">6. Stacker News pide get_public_key; el firmante devuelve la pubkey del usuario.</text>
+    <text x="760" y="918">7. Stacker News pide sign_event del desafío de login; el usuario aprueba (7b) y se firma con el nsec.</text>
+    <text x="760" y="942">8. El navegador envía el evento firmado al servidor, que verifica y crea la cuenta o inicia sesión.</text>
+  </g>
+  <text x="40" y="978" font-size="12" fill="#6b7280">Flechas moradas: mensajes NIP-46 cifrados (kind 24133) que viajan a través de los relays. La app y Stacker News nunca se conectan directamente.</text>
+</svg>

@@ -11,22 +11,9 @@ Aplicación mínima en **Python** que permite a un usuario crear o importar una 
 
 Nostr permite que una aplicación (el *cliente*, aquí Stacker News) pida firmas a un *firmante* que guarda la clave privada, sin que la clave salga nunca del firmante. La comunicación ocurre mediante eventos cifrados de **kind 24133** publicados en relays.
 
-```
- Usuario            Esta app (firmante)            Relays             Stacker News (cliente)
-   │  crea/importa nsec  │                            │                        │
-   │────────────────────▶│ guarda clave cifrada       │                        │
-   │                     │ genera bunker:// + secret  │                        │
-   │◀── muestra URL/QR ──│ se suscribe a kind 24133   │                        │
-   │                     │──────────────────────────▶ │                        │
-   │  pega bunker:// en Stacker News ─────────────────────────────────────────▶│
-   │                     │◀──── connect(secret) ──────│◀───────────────────────│
-   │                     │───── "ack" ───────────────▶│───────────────────────▶│
-   │                     │◀──── get_public_key ───────│◀───────────────────────│
-   │                     │───── pubkey usuario ──────▶│───────────────────────▶│
-   │                     │◀──── sign_event(desafío) ──│◀───────────────────────│
-   │  aprueba la firma ─▶│───── evento firmado ──────▶│───────────────────────▶│
-   │                                                                 sesión iniciada
-```
+![Diagrama de arquitectura: usuario, aplicación local (keystore, generador bunker://, firmante NIP-46), relays Nostr y Stacker News](img/arquitectura.png)
+
+_Fuente editable: [`img/arquitectura.svg`](img/arquitectura.svg)._
 
 URL generada:
 
