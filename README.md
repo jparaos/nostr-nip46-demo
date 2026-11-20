@@ -99,7 +99,7 @@ python -m tools.demo_client "bunker://..."
 | S4 | Relays | Lista corta de relays públicos, configurable | Stacker News necesita alcanzar al firmante por relays compartidos |
 | S5 | `secret` | Obligatorio y de un solo uso; luego se recuerdan los clientes autorizados | Evita que cualquiera que vea la pubkey del firmante pueda conectarse |
 | S6 | Permisos (`perms`) | Se ignoran; la autorización real es la aprobación manual de cada firma | Simplicidad; la aprobación manual es más fuerte que permisos declarados |
-| S7 | Cifrado de transporte | Se responde con NIP-44 (estándar actual); NIP-04 se acepta como respaldo si el cliente lo usa | Compatibilidad con clientes que aún no migran _(a confirmar con Stacker News)_ |
+| S7 | Cifrado de transporte | Se responde con NIP-44 (estándar actual); NIP-04 se acepta como respaldo si el cliente lo usa | **Confirmado como necesario:** Stacker News envía sus solicitudes con NIP-04 (ver sección 6) |
 | S8 | Interfaz | CLI / interfaz web local mínima con HTML simple, sin frameworks de frontend | Permitido por la consigna; foco en el protocolo |
 | S9 | Ejecución | El firmante corre en la máquina del usuario mientras dura el login | Basta para la demostración; no se busca un servicio 24/7 |
 
@@ -111,19 +111,52 @@ python -m tools.demo_client "bunker://..."
 - **Relays públicos.** Sin infraestructura propia, pero el flujo depende de su disponibilidad. En las pruebas, `relay.damus.io` respondió HTTP 503 y `relay.nsec.app` agotó el tiempo de conexión de forma intermitente; por eso se usan tres relays por defecto y cada conexión se reintenta con espera exponencial.
 - **Archivo local cifrado vs. llavero del sistema operativo.** Portable y fácil de revisar; el llavero del sistema sería más seguro pero dependiente de la plataforma.
 
-## 6. Preguntas abiertas
+## 6. Comportamiento observado de Stacker News
 
-Puntos no especificados que se resuelven observando el comportamiento real de Stacker News (el firmante registra cada solicitud recibida):
+La especificación no dice qué pide Stacker News, así que el firmante registra cada solicitud en `logs/session.jsonl` y las preguntas se resolvieron con una sesión real (20-11-2026):
 
-- ¿Qué `kind` y qué contenido tiene el evento de autenticación que Stacker News pide firmar?
-- ¿Stacker News cifra las solicitudes con NIP-44 o NIP-04?
-- ¿Envía `switch_relays` u otros métodos además de los soportados?
+| Pregunta | Observado |
+|---|---|
+| ¿Qué cifrado usa? | **NIP-04**, no NIP-44. El respaldo NIP-04 (S7) resultó indispensable: con solo NIP-44 el login habría fallado. |
+| ¿Qué métodos envía y en qué orden? | `connect` → `get_public_key` → `sign_event`. No envía `switch_relays` ni `ping`. |
+| ¿Qué parámetros trae `connect`? | El primer parámetro (pubkey del firmante) llega **vacío**; solo trae el `secret`. Por eso el firmante acepta un destinatario vacío y valida solo el `secret`. |
+| ¿Qué evento pide firmar? | **kind 27235** (autenticación HTTP, NIP-98), con `content` `"Stacker News Authentication"` y tags `challenge` (desafío del servidor), `u` = `https://stacker.news` y `method` = `GET`. |
 
-Las respuestas se documentarán aquí al confirmarlas.
+Solicitud `sign_event` recibida (resumida):
 
-## 7. Demostración _(pendiente)_
+```json
+{
+  "kind": 27235,
+  "content": "Stacker News Authentication",
+  "tags": [["challenge", "9f32bcd8…"], ["u", "https://stacker.news"], ["method", "GET"]],
+  "created_at": 1795200139
+}
+```
 
-Capturas o video del flujo completo: creación de clave → URL `bunker://` → conexión desde Stacker News → aprobación de firma → sesión iniciada.
+Además, el cliente incluyó `pubkey` e `id` en el evento sin firmar; el firmante los ignora y los recalcula con la clave del usuario.
+
+## 7. Demostración
+
+Login real en Stacker News realizado el 20-11-2026 con una clave generada por el firmante (solo para pruebas).
+
+**1. Salida del firmante** (resumida; el `nsec` se omite):
+
+```
+[init] pubkey usuario: npub1jjgep7mt8qzr4np6a4ftgfkyj6yal7w4x65ysv3v5xcngr9z08vqz8m978
+[init] Pega esta URL en Stacker News (login con Nostr):
+  bunker://949190fb…?relay=wss%3A%2F%2Frelay.nsec.app&relay=…&secret=…
+[req]  de=2a6948324998… cifrado=nip04 connect (secret recibido)
+[resp] ack
+[req]  de=2a6948324998… cifrado=nip04 get_public_key params=[]
+[resp] 949190fb6b38043acc3aed52b426c49689dff9d536a848322ca1b1340ca279d8
+[req]  de=2a6948324998… cifrado=nip04 sign_event kind=27235 tags=[['challenge', '9f32…'], ['u', 'https://stacker.news'], ['method', 'GET']] content='Stacker News Authentication'
+¿Firmar este evento? [s/N] s
+[resp] {"pubkey": "949190fb…", "kind": 27235, …}
+```
+
+**2. Resultado en Stacker News:** se creó la cuenta e inició sesión como `@949190fb6b`, con el mismo `npub1jjgep…08vqz8m978` que mostró el firmante.
+
+![Perfil en Stacker News con sesión iniciada mediante el firmante NIP-46](img/login-stacker-news.png)
 
 ## 8. Uso de agente de IA
 

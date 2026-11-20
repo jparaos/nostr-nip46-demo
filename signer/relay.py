@@ -61,7 +61,9 @@ class RelayPool:
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
-                log.warning("relay %s desconectado (%s); reintento en %ss", url, exc, delay)
+                # solo el primer fallo es warning, para no ensuciar la consola mientras se pide aprobación
+                level = logging.WARNING if delay == 1 else logging.DEBUG
+                log.log(level, "relay %s desconectado (%s); reintento en %ss", url, exc, delay)
             finally:
                 self._conns.pop(url, None)
             await asyncio.sleep(delay)
