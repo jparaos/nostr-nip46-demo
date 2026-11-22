@@ -30,7 +30,10 @@ Métodos NIP-46 soportados: `connect`, `get_public_key`, `sign_event`, `ping` y 
 | [`signer/crypto.py`](signer/crypto.py) | Serialización e id de eventos (NIP-01), firma, cifrado NIP-44/NIP-04 |
 | [`signer/nip46.py`](signer/nip46.py) | Lógica del firmante: URL `bunker://`, validación del `secret`, despacho de métodos |
 | [`signer/relay.py`](signer/relay.py) | Conexión WebSocket a relays, suscripción, publicación, reconexión |
-| [`signer/main.py`](signer/main.py) | Punto de entrada: arranque, aprobación en consola, registro en `logs/session.jsonl` |
+| [`signer/approvals.py`](signer/approvals.py) | `ApprovalHandler` (contrato) y `ApprovalManager`: cola asíncrona de solicitudes de firma con tiempo límite |
+| [`signer/service.py`](signer/service.py) | `SignerService`: ciclo de vida de relays y procesamiento concurrente de eventos, independiente de la interfaz |
+| [`signer/audit.py`](signer/audit.py) | Auditoría en `logs/session.jsonl` con minimización de datos (sin `secret`, firmas ni contenido) |
+| [`signer/main.py`](signer/main.py) | Interfaz de consola: muestra la URL y aprueba/rechaza solicitudes (`--approval-timeout`, `--auto-approve`) |
 | [`tools/demo_client.py`](tools/demo_client.py) | Cliente NIP-46 de prueba que simula a Stacker News |
 | [`tests/test_nip46.py`](tests/test_nip46.py) | Pruebas unitarias offline |
 
