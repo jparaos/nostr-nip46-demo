@@ -33,9 +33,10 @@ Métodos NIP-46 soportados: `connect`, `get_public_key`, `sign_event`, `ping` y 
 | [`signer/approvals.py`](signer/approvals.py) | `ApprovalHandler` (contrato) y `ApprovalManager`: cola asíncrona de solicitudes de firma con tiempo límite |
 | [`signer/service.py`](signer/service.py) | `SignerService`: ciclo de vida de relays y procesamiento concurrente de eventos, independiente de la interfaz |
 | [`signer/audit.py`](signer/audit.py) | Auditoría en `logs/session.jsonl` con minimización de datos (sin `secret`, firmas ni contenido) |
-| [`signer/main.py`](signer/main.py) | Interfaz de consola: muestra la URL y aprueba/rechaza solicitudes (`--approval-timeout`, `--auto-approve`) |
+| [`signer/vault.py`](signer/vault.py) | Bóveda cifrada: generar/importar/validar clave, scrypt + AES-256-GCM, persistencia atómica, bloqueo/desbloqueo |
+| [`signer/main.py`](signer/main.py) | Interfaz de consola: `init` (crear/importar bóveda), desbloqueo, URL y aprobación de solicitudes |
 | [`tools/demo_client.py`](tools/demo_client.py) | Cliente NIP-46 de prueba que simula a Stacker News |
-| [`tests/test_nip46.py`](tests/test_nip46.py) | Pruebas unitarias offline |
+| [`tests/`](tests/) | Pruebas offline: protocolo, aprobaciones, servicio, bóveda y consola |
 
 ## 2. Instalación y uso
 
@@ -47,13 +48,22 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
+**Crear la bóveda (una sola vez)**
+
+```bash
+python -m signer.main init            # genera una clave nueva; el nsec se muestra UNA vez para respaldo
+python -m signer.main init --import   # importa un nsec1… o hex existente (se escribe oculto)
+```
+
+La bóveda se guarda en `~/.nip46-signer/vault.json` (cambiar con `--vault RUTA`). Nunca se sobrescribe una bóveda existente.
+
 **Iniciar el firmante**
 
 ```bash
-python -m signer.main                       # genera una clave nueva y la muestra una vez
+python -m signer.main                 # pide la contraseña, desbloquea e inicia
 ```
 
-Para reutilizar una clave, define la variable `NSEC` antes de iniciar (PowerShell: `$env:NSEC="nsec1..."`; bash: `export NSEC=nsec1...`). Opciones: `--relay wss://...` (repetible) para cambiar relays, `-v` para ver el detalle de conexión.
+Opciones: `--relay wss://...` (repetible), `--approval-timeout 60`, `-v` para ver el detalle de conexión. Solo para pruebas: `--ephemeral` (clave temporal, nunca se muestra ni guarda) y `--auto-approve`.
 
 **Iniciar sesión en Stacker News**
 
@@ -98,11 +108,11 @@ python -m tools.demo_client "bunker://..."
 |---|------|----------|---------------|
 | S1 | Clave del firmante vs. clave del usuario | Se usa la **misma** clave para ambos roles | NIP-46 lo permite; reduce complejidad sin afectar el flujo |
 | S2 | Usuarios | Un solo usuario y una sola clave por instalación | La consigna habla de "un usuario" |
-| S3 | Almacenamiento | Archivo local cifrado con frase de acceso (KDF + cifrado autenticado) | Protección razonable en reposo sin depender de servicios externos |
+| S3 | Almacenamiento | Archivo local cifrado con contraseña: scrypt + AES-256-GCM (sección 6) | Protección en reposo sin depender de servicios externos |
 | S4 | Relays | Lista corta de relays públicos, configurable | Stacker News necesita alcanzar al firmante por relays compartidos |
 | S5 | `secret` | Obligatorio y de un solo uso; luego se recuerdan los clientes autorizados | Evita que cualquiera que vea la pubkey del firmante pueda conectarse |
 | S6 | Permisos (`perms`) | Se ignoran; la autorización real es la aprobación manual de cada firma | Simplicidad; la aprobación manual es más fuerte que permisos declarados |
-| S7 | Cifrado de transporte | Se responde con NIP-44 (estándar actual); NIP-04 se acepta como respaldo si el cliente lo usa | **Confirmado como necesario:** Stacker News envía sus solicitudes con NIP-04 (ver sección 6) |
+| S7 | Cifrado de transporte | Se responde con NIP-44 (estándar actual); NIP-04 se acepta como respaldo si el cliente lo usa | **Confirmado como necesario:** Stacker News envía sus solicitudes con NIP-04 (ver sección 7) |
 | S8 | Interfaz | CLI / interfaz web local mínima con HTML simple, sin frameworks de frontend | Permitido por la consigna; foco en el protocolo |
 | S9 | Ejecución | El firmante corre en la máquina del usuario mientras dura el login | Basta para la demostración; no se busca un servicio 24/7 |
 
@@ -113,8 +123,37 @@ python -m tools.demo_client "bunker://..."
 - **Aprobación manual de firmas.** Agrega una interacción, pero evita que un cliente conectado firme eventos arbitrarios en nombre del usuario.
 - **Relays públicos.** Sin infraestructura propia, pero el flujo depende de su disponibilidad. En las pruebas, `relay.damus.io` respondió HTTP 503 y `relay.nsec.app` agotó el tiempo de conexión de forma intermitente; por eso se usan tres relays por defecto y cada conexión se reintenta con espera exponencial.
 - **Archivo local cifrado vs. llavero del sistema operativo.** Portable y fácil de revisar; el llavero del sistema sería más seguro pero dependiente de la plataforma.
+- **AES-256-GCM propio vs. NIP-49 (`ncryptsec`).** nostr-sdk ya implementa NIP-49 (scrypt + XChaCha20-Poly1305), que no requería dependencias nuevas y es interoperable con otros firmantes. Se eligió AES-256-GCM por requisito explícito del diseño, lo que agrega `cryptography` como dependencia y un formato de archivo propio (versionado).
 
-## 6. Comportamiento observado de Stacker News
+## 6. Seguridad de la bóveda
+
+**Esquema criptográfico**
+
+| Elemento | Elección | Motivo |
+|---|---|---|
+| Derivación | `scrypt` (stdlib), N=2¹⁷, r=8, p=1 → 32 bytes | Costosa en memoria (~128 MiB) y tiempo (~0,3 s medido): encarece ataques de diccionario. Nunca un hash rápido |
+| Cifrado | AES-256-GCM (`cryptography`) | Cifrado autenticado: detecta contraseña incorrecta y archivos alterados |
+| Aleatoriedad | `secrets.token_bytes`: salt de 16 bytes y nonce de 12 bytes **nuevos en cada guardado** | Sin valores constantes; dos bóvedas con la misma clave y contraseña son distintas |
+| Datos asociados (AAD) | Encabezado: `version`, `pubkey`, parámetros de scrypt | Si alguien cambia la pubkey o baja el costo de scrypt en el archivo, el descifrado falla |
+| Límites al leer | N entre 2¹⁴ y 2²⁰, r=8, p=1, largos de salt/nonce exactos | Un archivo manipulado no puede degradar el costo ni agotar la memoria |
+| Verificación final | La clave descifrada debe producir la `pubkey` guardada | Segunda barrera contra corrupción |
+
+**Qué se guarda en disco:** solo el JSON cifrado (pubkey pública, parámetros, salt, nonce, texto cifrado). Ni la contraseña ni el nsec, en ninguna forma. Las pruebas verifican que el archivo no contiene el nsec, el hex (texto ni bytes) ni la contraseña.
+
+**Persistencia:** escritura atómica (temporal en el mismo directorio + `fsync` + `os.replace`); el temporal solo contiene datos ya cifrados y se elimina si algo falla. Sin `overwrite=True` nunca se reemplaza una bóveda existente. En Linux/macOS se aplican permisos `600`/`700`; en Windows la bóveda vive en el perfil del usuario (`~/.nip46-signer`), protegido por su ACL. Fuera del repositorio por defecto, y `.gitignore` excluye `vault/`, `*.vault.json` y temporales.
+
+**En memoria:** la clave solo existe mientras la bóveda está desbloqueada (`get_signing_keys()` falla si está bloqueada). `lock_vault()` suelta la referencia; los bytes descifrados intermedios se sobrescriben con ceros.
+
+**Fugas evitadas:** los errores de nostr-sdk y `cryptography` se re-lanzan con `from None` y mensajes genéricos, sin eco de la clave ni de la contraseña (probado sobre el traceback impreso). `repr()` de la bóveda y del resultado de creación ocultan el nsec. La consola lee clave y contraseña con `getpass` (sin eco). El nsec de una clave nueva se muestra una sola vez al crearla y no se puede volver a obtener. Se eliminó la variable de entorno `NSEC` (quedaba en el historial de la consola y en el entorno del proceso).
+
+**Límites conocidos**
+
+- Python no garantiza borrar la memoria: el objeto `Keys` (Rust) y los `str` intermedios (el hex que exige nostr-sdk, el texto ingresado en la consola) quedan hasta que el recolector los libera.
+- La fortaleza depende de la contraseña: se exige un mínimo de 8 caracteres, sin medidor de calidad.
+- GCM no distingue "contraseña incorrecta" de "archivo alterado"; ambos se informan como el mismo error.
+- No hay límite de intentos persistente: la consola corta tras 3 intentos, pero un atacante con el archivo puede probar offline (lo frena solo el costo de scrypt).
+
+## 7. Comportamiento observado de Stacker News
 
 La especificación no dice qué pide Stacker News, así que el firmante registra cada solicitud en `logs/session.jsonl` y las preguntas se resolvieron con una sesión real (20-11-2026):
 
@@ -138,7 +177,7 @@ Solicitud `sign_event` recibida (resumida):
 
 Además, el cliente incluyó `pubkey` e `id` en el evento sin firmar; el firmante los ignora y los recalcula con la clave del usuario.
 
-## 7. Demostración
+## 8. Demostración
 
 Login real en Stacker News realizado el 20-11-2026 con una clave generada por el firmante (solo para pruebas).
 
@@ -161,11 +200,11 @@ Login real en Stacker News realizado el 20-11-2026 con una clave generada por el
 
 ![Perfil en Stacker News con sesión iniciada mediante el firmante NIP-46](img/login-stacker-news.png)
 
-## 8. Uso de agente de IA
+## 9. Uso de agente de IA
 
 El desarrollo se realizó con **Claude Code**. Las transcripciones de las conversaciones están en [`ai-logs/`](ai-logs/) _(pendiente)_.
 
-## 9. Referencias
+## 10. Referencias
 
 - [Nostr](https://nostr.com)
 - [NIP-46 — Nostr Remote Signing](https://github.com/nostr-protocol/nips/blob/master/46.md)

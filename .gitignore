@@ -3,3 +3,12 @@ __pycache__/
 *.pyc
 logs/
 .env
+
+# bóvedas y secretos: nunca al repositorio
+vault/
+vault.json
+*.vault.json
+.vault-*.tmp
+
+# empaquetado local del entorno virtual (binarios, ~10 MB)
+requirements.zip
