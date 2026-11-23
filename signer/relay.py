@@ -27,6 +27,11 @@ class RelayPool:
         self._tasks: list[asyncio.Task] = []
         self.ready = asyncio.Event()
 
+    @property
+    def connected(self) -> list[str]:
+        """Relays con conexión WebSocket abierta en este momento (solo lectura)."""
+        return list(self._conns)
+
     async def start(self) -> None:
         self._tasks = [asyncio.create_task(self._run(url)) for url in self.urls]
 

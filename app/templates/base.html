@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <title>{% block title %}Firmante NIP-46{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body data-page="{{ page }}">
+  <header class="topbar">
+    <div class="brand"><span class="logo" aria-hidden="true">⚿</span> Firmante NIP-46 <span class="muted">· local</span></div>
+    {% block nav %}{% endblock %}
+  </header>
+  <main class="container">
+    <div id="alert" class="alert" role="alert" hidden></div>
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="footer muted">Solo en 127.0.0.1 · la clave nunca sale de este equipo</footer>
+  <script src="/static/js/common.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

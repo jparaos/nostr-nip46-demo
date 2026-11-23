@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Solicitudes · Firmante NIP-46{% endblock %}
+{% block nav %}{% include "_nav.html" %}{% endblock %}
+{% block content %}
+<section class="card">
+  <h2>Solicitudes pendientes</h2>
+  <p class="muted small">Revisa qué se firmará antes de aprobar. Sin respuesta, se rechazan automáticamente al vencer el plazo.</p>
+  <div id="pending-list" class="requests"><p class="muted">No hay solicitudes pendientes.</p></div>
+</section>
+<section class="card">
+  <h2>Historial reciente</h2>
+  <table class="table">
+    <thead><tr><th>Hora</th><th>Cliente</th><th>Kind</th><th>Resultado</th></tr></thead>
+    <tbody id="history-body"><tr><td colspan="4" class="muted">Sin actividad.</td></tr></tbody>
+  </table>
+</section>
+{% endblock %}
+{% block scripts %}<script src="/static/js/dashboard.js"></script>{% endblock %}

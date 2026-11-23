@@ -34,9 +34,15 @@ Métodos NIP-46 soportados: `connect`, `get_public_key`, `sign_event`, `ping` y 
 | [`signer/service.py`](signer/service.py) | `SignerService`: ciclo de vida de relays y procesamiento concurrente de eventos, independiente de la interfaz |
 | [`signer/audit.py`](signer/audit.py) | Auditoría en `logs/session.jsonl` con minimización de datos (sin `secret`, firmas ni contenido) |
 | [`signer/vault.py`](signer/vault.py) | Bóveda cifrada: generar/importar/validar clave, scrypt + AES-256-GCM, persistencia atómica, bloqueo/desbloqueo |
-| [`signer/main.py`](signer/main.py) | Interfaz de consola: `init` (crear/importar bóveda), desbloqueo, URL y aprobación de solicitudes |
+| [`signer/main.py`](signer/main.py) | Interfaz de consola (alternativa): `init` (crear/importar bóveda), desbloqueo, URL y aprobación |
+| [`app/main.py`](app/main.py) | Aplicación web FastAPI: composición, `lifespan` (arranque/cierre ordenado), middleware |
+| [`app/security.py`](app/security.py) | Validación de Host/Origin, sesión local, CSRF y encabezados de seguridad |
+| [`app/dependencies.py`](app/dependencies.py) | Estado compartido (una sola `ApprovalManager`) y controles de sesión/CSRF |
+| [`app/services/`](app/services/) | `VaultService` (scrypt en un hilo, sin bloquear el event loop) y `SignerRuntime` (inicia/detiene `SignerService`) |
+| [`app/routes/`](app/routes/) | `wallet.py` (bóveda), `signer.py` (estado, nueva URL), `approvals.py` (solicitudes), `pages.py` (HTML) |
+| [`app/templates/`](app/templates/), [`app/static/`](app/static/) | Jinja2 + CSS + JavaScript nativo (sin frameworks) |
 | [`tools/demo_client.py`](tools/demo_client.py) | Cliente NIP-46 de prueba que simula a Stacker News |
-| [`tests/`](tests/) | Pruebas offline: protocolo, aprobaciones, servicio, bóveda y consola |
+| [`tests/`](tests/) | Pruebas offline: protocolo, aprobaciones, servicio, bóveda, consola y aplicación web |
 
 ## 2. Instalación y uso
 
@@ -48,34 +54,40 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-**Crear la bóveda (una sola vez)**
+### Interfaz web (recomendada)
 
 ```bash
-python -m signer.main init            # genera una clave nueva; el nsec se muestra UNA vez para respaldo
-python -m signer.main init --import   # importa un nsec1… o hex existente (se escribe oculto)
+python -m app                         # abre http://127.0.0.1:8046
 ```
 
-La bóveda se guarda en `~/.nip46-signer/vault.json` (cambiar con `--vault RUTA`). Nunca se sobrescribe una bóveda existente.
+1. **Configuración** (primera vez): crea una clave nueva o importa un `nsec`/hex, y define la contraseña de la bóveda. Si la clave es nueva, el `nsec` se muestra **una sola vez** para respaldarlo; hay que confirmar el respaldo para continuar.
+2. **Desbloqueo** (siguientes veces): la contraseña descifra la bóveda e inicia el firmante.
+3. **Panel**: estado de la bóveda, del firmante y de cada relay; clientes autorizados; la URL `bunker://` con botón **Copiar**, y **Generar nueva URL** (nuevo `secret`).
+4. **Solicitudes**: cada firma pendiente muestra identificador, cliente, método, kind, contenido, tags y fecha, con **APROBAR** / **RECHAZAR** y una cuenta regresiva (se rechaza sola a los 120 s). El panel se actualiza cada 1,5 s.
 
-**Iniciar el firmante**
-
-```bash
-python -m signer.main                 # pide la contraseña, desbloquea e inicia
-```
-
-Opciones: `--relay wss://...` (repetible), `--approval-timeout 60`, `-v` para ver el detalle de conexión. Solo para pruebas: `--ephemeral` (clave temporal, nunca se muestra ni guarda) y `--auto-approve`.
+Opciones: `--port`, `--vault RUTA` (por defecto `~/.nip46-signer/vault.json`), `--relay wss://...` (repetible), `--approval-timeout`. Siempre escucha en `127.0.0.1` (no es configurable).
 
 **Iniciar sesión en Stacker News**
 
-1. Copia la URL `bunker://...` que imprime el firmante.
+1. En el panel, pulsa **Copiar** junto a la URL `bunker://...`.
 2. Abre <https://stacker.news/signup?callbackUrl=https%3A%2F%2Fstacker.news%2F&type=nostr>, elige el login con Nostr remoto (NIP-46 / bunker) y pega la URL.
-3. Cuando el firmante muestre la solicitud de firma, revisa el evento y responde `s`.
+3. La solicitud de firma (kind 27235) aparece en el panel: revísala y pulsa **APROBAR**.
 
-Cada solicitud y respuesta queda registrada en `logs/session.jsonl` (sin el `nsec` ni el `secret`).
+Cada solicitud y respuesta queda registrada en `logs/session.jsonl` (sin el `nsec`, el `secret`, firmas ni contenido).
+
+### Consola (alternativa)
+
+```bash
+python -m signer.main init            # crea la bóveda (o init --import para importar)
+python -m signer.main                 # pide la contraseña, desbloquea e inicia; se aprueba con s/N
+```
+
+Usa la misma bóveda que la web. Opciones: `--relay`, `--approval-timeout`, `-v`. Solo para pruebas: `--ephemeral` (clave temporal que nunca se muestra ni guarda) y `--auto-approve`. La web **no** tiene autoaprobación.
 
 **Pruebas**
 
 ```bash
+pip install -r requirements-dev.txt   # agrega httpx (TestClient)
 python -m unittest -v
 ```
 
@@ -113,7 +125,8 @@ python -m tools.demo_client "bunker://..."
 | S5 | `secret` | Obligatorio y de un solo uso; luego se recuerdan los clientes autorizados | Evita que cualquiera que vea la pubkey del firmante pueda conectarse |
 | S6 | Permisos (`perms`) | Se ignoran; la autorización real es la aprobación manual de cada firma | Simplicidad; la aprobación manual es más fuerte que permisos declarados |
 | S7 | Cifrado de transporte | Se responde con NIP-44 (estándar actual); NIP-04 se acepta como respaldo si el cliente lo usa | **Confirmado como necesario:** Stacker News envía sus solicitudes con NIP-04 (ver sección 7) |
-| S8 | Interfaz | CLI / interfaz web local mínima con HTML simple, sin frameworks de frontend | Permitido por la consigna; foco en el protocolo |
+| S8 | Interfaz | Web local (FastAPI + Jinja2 + JS nativo, sin frameworks de frontend) y consola como alternativa | Permitido por la consigna; la consola conserva la demostración original |
+| S10 | Operador | Una sola persona y una sola bóveda; sesiones en memoria que no sobreviven a un reinicio | Sin multiusuario por alcance; reiniciar exige volver a desbloquear |
 | S9 | Ejecución | El firmante corre en la máquina del usuario mientras dura el login | Basta para la demostración; no se busca un servicio 24/7 |
 
 ## 5. Tradeoffs
@@ -123,9 +136,14 @@ python -m tools.demo_client "bunker://..."
 - **Aprobación manual de firmas.** Agrega una interacción, pero evita que un cliente conectado firme eventos arbitrarios en nombre del usuario.
 - **Relays públicos.** Sin infraestructura propia, pero el flujo depende de su disponibilidad. En las pruebas, `relay.damus.io` respondió HTTP 503 y `relay.nsec.app` agotó el tiempo de conexión de forma intermitente; por eso se usan tres relays por defecto y cada conexión se reintenta con espera exponencial.
 - **Archivo local cifrado vs. llavero del sistema operativo.** Portable y fácil de revisar; el llavero del sistema sería más seguro pero dependiente de la plataforma.
+- **Polling vs. Server-Sent Events/WebSocket.** La interfaz consulta la API cada 1,5 s: menos piezas y fácil de probar; la demora es imperceptible para una aprobación manual. Costo: unas pocas peticiones locales por segundo.
+- **Una sola cola de aprobaciones.** La web y la consola usan la misma `ApprovalManager` que espera el firmante; no hay una segunda cola que sincronizar.
+- **Nueva URL = reiniciar el firmante.** Generar un `secret` nuevo reinicia `SignerService` y olvida los clientes autorizados, sin tocar el protocolo NIP-46.
 - **AES-256-GCM propio vs. NIP-49 (`ncryptsec`).** nostr-sdk ya implementa NIP-49 (scrypt + XChaCha20-Poly1305), que no requería dependencias nuevas y es interoperable con otros firmantes. Se eligió AES-256-GCM por requisito explícito del diseño, lo que agrega `cryptography` como dependencia y un formato de archivo propio (versionado).
 
-## 6. Seguridad de la bóveda
+## 6. Seguridad
+
+### Bóveda
 
 **Esquema criptográfico**
 
@@ -152,6 +170,26 @@ python -m tools.demo_client "bunker://..."
 - La fortaleza depende de la contraseña: se exige un mínimo de 8 caracteres, sin medidor de calidad.
 - GCM no distingue "contraseña incorrecta" de "archivo alterado"; ambos se informan como el mismo error.
 - No hay límite de intentos persistente: la consola corta tras 3 intentos, pero un atacante con el archivo puede probar offline (lo frena solo el costo de scrypt).
+
+### Seguridad de la interfaz web
+
+**Amenaza principal:** el servidor escucha solo en `127.0.0.1`, pero cualquier página abierta en el navegador puede intentar llamarlo (CSRF) o hacer que su dominio apunte a `127.0.0.1` (DNS rebinding). Escuchar en localhost no basta, así que:
+
+| Control | Implementación |
+|---|---|
+| Solo local | `uvicorn` en `127.0.0.1` fijo; el middleware rechaza clientes no locales |
+| Host (anti DNS rebinding) | Solo `127.0.0.1:<puerto>` y `localhost:<puerto>`; cualquier otro → 403 |
+| Origin | Obligatorio en POST y debe ser el propio; ausente o ajeno → 403 |
+| CSRF | Doble envío: cookie HttpOnly `signer_csrf` + mismo token en el encabezado `X-CSRF-Token` (la página lo recibe en un `<meta>`) |
+| Sesión | Cookie `signer_session` HttpOnly + `SameSite=Strict`, emitida solo tras probar la contraseña; se revocan todas al bloquear o detener el servidor |
+| CORS | No se habilita: un origen ajeno no puede leer respuestas ni enviar encabezados propios |
+| Encabezados | CSP `script-src 'self'` (sin scripts inline), `X-Frame-Options: DENY`, `Cache-Control: no-store`, `Referrer-Policy: no-referrer` |
+| Datos no confiables | Contenido y tags de las solicitudes vienen del cliente remoto: se pintan con `textContent`, nunca `innerHTML` |
+| Event loop | scrypt corre en un hilo (`asyncio.to_thread`); aprobar/rechazar resuelve un `Future`, sin bloquear relays ni API |
+
+**Secretos en respuestas HTTP:** ningún endpoint devuelve la contraseña ni la clave. Única excepción deliberada: la respuesta de `POST /api/vault/create` incluye el `nsec` **una vez** para respaldo (con `Cache-Control: no-store`); la página lo muestra borroso, exige confirmar el respaldo y navega con `location.replace` para no dejarlo en el historial. Una clave importada nunca se devuelve. Los mensajes de error son textos fijos, sin eco de lo ingresado. Las pruebas recorren todas las respuestas buscando el `nsec`, el hex y las contraseñas.
+
+**Ciclo de vida (`lifespan`):** al iniciar se crean los servicios con la bóveda bloqueada; el firmante y los relays arrancan recién al desbloquear. Al bloquear o detener el servidor: se cancelan las tareas en curso, las solicitudes pendientes se rechazan (nunca se firman), se cierran los relays, se suelta la clave y se revocan las sesiones.
 
 ## 7. Comportamiento observado de Stacker News
 

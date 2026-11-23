@@ -48,6 +48,7 @@ class SignRequest:
     content: str
     tags: list
     created_at: int | None
+    method: str = "sign_event"  # único método NIP-46 que requiere aprobación
     received_at: float = field(default_factory=time.time)
     status: Status = Status.PENDING
     reason: str | None = None

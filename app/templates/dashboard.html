@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Panel · Firmante NIP-46{% endblock %}
+{% block nav %}{% include "_nav.html" %}{% endblock %}
+{% block content %}
+<section class="card">
+  <div class="card-head">
+    <h2>Conectar con Stacker News</h2>
+    <button type="button" class="btn small" id="restart-btn" title="Nuevo secret; olvida los clientes autorizados">Generar nueva URL</button>
+  </div>
+  <p class="muted small">Pega esta URL en el inicio de sesión con Nostr (NIP-46 / bunker) de Stacker News.</p>
+  <div class="copy-row">
+    <code id="bunker-url" class="wrap mono-box">—</code>
+    <button type="button" class="btn primary" id="copy-bunker">Copiar</button>
+  </div>
+  <p class="small" id="secret-state"></p>
+</section>
+
+<section class="grid">
+  <div class="card">
+    <h2>Estado</h2>
+    <dl class="status-list">
+      <dt>Bóveda</dt><dd id="st-vault">—</dd>
+      <dt>Firmante</dt><dd id="st-signer">—</dd>
+      <dt>Clave pública</dt><dd><code id="st-npub" class="wrap">—</code></dd>
+    </dl>
+  </div>
+  <div class="card">
+    <h2>Relays</h2>
+    <ul class="list" id="relay-list"><li class="muted">—</li></ul>
+  </div>
+  <div class="card">
+    <h2>Clientes autorizados</h2>
+    <ul class="list" id="client-list"><li class="muted">Ninguno todavía</li></ul>
+  </div>
+</section>
+
+<section class="card">
+  <div class="card-head">
+    <h2>Solicitudes pendientes</h2>
+    <a href="/requests" class="small">Ver historial →</a>
+  </div>
+  <div id="pending-list" class="requests"><p class="muted">No hay solicitudes pendientes.</p></div>
+</section>
+{% endblock %}
+{% block scripts %}<script src="/static/js/dashboard.js"></script>{% endblock %}

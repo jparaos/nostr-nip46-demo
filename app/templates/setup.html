@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Configuración · Firmante NIP-46{% endblock %}
+{% block content %}
+<section class="card narrow" id="setup-form-card">
+  <h1>Configura tu bóveda</h1>
+  <p class="muted">La clave secreta se guarda cifrada (scrypt + AES-256-GCM) en este equipo. Nadie más la recibe.</p>
+
+  <div class="tabs" role="tablist">
+    <button type="button" class="tab active" data-mode="create" role="tab" aria-selected="true">Crear clave nueva</button>
+    <button type="button" class="tab" data-mode="import" role="tab" aria-selected="false">Importar nsec</button>
+  </div>
+
+  <form id="setup-form" autocomplete="off">
+    <label class="field" id="secret-field" hidden>
+      <span>Clave secreta (nsec1… o hex)</span>
+      <input type="password" name="secret" autocomplete="off" spellcheck="false">
+    </label>
+    <label class="field">
+      <span>Contraseña de la bóveda <small class="muted">(mínimo 8 caracteres)</small></span>
+      <input type="password" name="password" autocomplete="new-password" required minlength="8">
+    </label>
+    <label class="field">
+      <span>Confirmar contraseña</span>
+      <input type="password" name="confirm" autocomplete="new-password" required minlength="8">
+    </label>
+    <button type="submit" class="btn primary" id="setup-submit">Crear bóveda</button>
+  </form>
+</section>
+
+<section class="card narrow" id="result-card" hidden>
+  <h1 id="result-title">Bóveda creada</h1>
+  <div class="kv">
+    <span>Clave pública</span>
+    <code id="result-npub" class="wrap"></code>
+  </div>
+
+  <div id="backup" hidden>
+    <div class="warning">
+      <strong>Respalda tu clave secreta ahora.</strong>
+      Se muestra <strong>una sola vez</strong> y no se puede volver a recuperar desde esta interfaz.
+      Quien la tenga controla tu identidad Nostr: no la compartas ni la pegues en sitios web.
+    </div>
+    <div class="secret-box">
+      <code id="result-nsec" class="wrap blurred"></code>
+      <div class="row">
+        <button type="button" class="btn" id="reveal">Mostrar</button>
+        <button type="button" class="btn" id="copy-nsec">Copiar</button>
+      </div>
+    </div>
+    <label class="check"><input type="checkbox" id="backup-done"> Ya guardé mi clave secreta en un lugar seguro</label>
+  </div>
+
+  <button type="button" class="btn primary" id="go-dashboard">Continuar al panel</button>
+</section>
+{% endblock %}
+{% block scripts %}<script src="/static/js/setup.js"></script>{% endblock %}

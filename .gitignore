@@ -12,3 +12,6 @@ vault.json
 
 # empaquetado local del entorno virtual (binarios, ~10 MB)
 requirements.zip
+
+# configuración local del entorno de desarrollo
+.claude/

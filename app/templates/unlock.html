@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Desbloquear · Firmante NIP-46{% endblock %}
+{% block content %}
+<section class="card narrow">
+  <h1>Desbloquear bóveda</h1>
+  <p class="muted">Identidad: <code class="wrap">{{ pubkey[:16] }}…{{ pubkey[-8:] }}</code></p>
+  <form id="unlock-form" autocomplete="off">
+    <label class="field">
+      <span>Contraseña</span>
+      <input type="password" name="password" autocomplete="current-password" required autofocus>
+    </label>
+    <button type="submit" class="btn primary">Desbloquear</button>
+  </form>
+  <p class="muted small">La bóveda permanece bloqueada hasta ingresar la contraseña correcta. Al desbloquear se inicia el firmante.</p>
+</section>
+{% endblock %}
+{% block scripts %}<script src="/static/js/unlock.js"></script>{% endblock %}
