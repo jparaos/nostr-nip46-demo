@@ -61,8 +61,10 @@ class SignerRuntime:
 
     def status(self) -> dict:
         if not self.service:
-            return {"running": False, "bunker_url": None, "secret_used": False, "relays": [], "clients": []}
+            return {"running": False, "bunker_url": None, "secret_used": False, "relays": [], "clients": [],
+                    "activity": None}
         connected = set(getattr(self.service.pool, "connected", []))
+        received = getattr(self.service.pool, "received", {})
         authorized = sorted(self.service.signer.authorized)
         return {
             "running": self.running,
@@ -70,6 +72,8 @@ class SignerRuntime:
             "bunker_url": self.service.bunker_url,
             # el único camino para autorizar un cliente es un connect con el secret (de un solo uso)
             "secret_used": bool(authorized),
-            "relays": [{"url": url, "connected": url in connected} for url in self.relays],
+            "relays": [{"url": url, "connected": url in connected, "events": received.get(url, 0)}
+                       for url in self.relays],
             "clients": [short(c) for c in authorized],  # solo identificadores públicos abreviados
+            "activity": dict(self.service.activity),  # contadores y motivos de descarte, sin contenido
         }

@@ -7,6 +7,7 @@ const page = document.body.dataset.page;
 let bunkerUrl = "";
 let timeoutSeconds = 120;
 let failures = 0;
+let revealSecret = false;
 const busy = new Set(); // solicitudes con una decisión en curso
 
 const $ = (id) => document.getElementById(id);
@@ -48,7 +49,9 @@ function renderStatus(status) {
 
   if (page !== "dashboard") return;
   bunkerUrl = signer.bunker_url || "";
-  $("bunker-url").textContent = bunkerUrl || "—";
+  // El secret se oculta en pantalla (compartir pantalla, capturas); "Copiar" copia la URL completa.
+  const shown = revealSecret ? bunkerUrl : bunkerUrl.replace(/secret=[^&]+/, "secret=••••••••");
+  $("bunker-url").textContent = shown || "—";
   $("secret-state").textContent = signer.secret_used
     ? "El secret de esta URL ya se usó. Para conectar un cliente nuevo, genera una nueva URL."
     : "Lista para usar: el secret es de un solo uso.";
@@ -56,17 +59,35 @@ function renderStatus(status) {
   $("st-vault").textContent = status.vault.unlocked ? "Desbloqueada" : "Bloqueada";
   $("st-signer").textContent = signer.running ? `Activo desde ${formatTime(signer.started_at)}` : "Detenido";
   $("st-npub").textContent = status.npub || "—";
+  $("st-activity").replaceChildren(...activityLines(signer.activity));
 
   $("relay-list").replaceChildren(
     ...signer.relays.map((r) =>
       el("li", {}, el("span", { class: `dot ${r.connected ? "ok" : "bad"}` }), r.url,
-        el("span", { class: "muted small", text: r.connected ? "conectado" : "reintentando" })))
+        el("span", { class: "muted small",
+          text: `${r.connected ? "conectado" : "reintentando"} · ${r.events} eventos` })))
   );
   $("client-list").replaceChildren(
     ...(signer.clients.length
       ? signer.clients.map((c) => el("li", {}, el("code", { text: c })))
       : [el("li", { class: "muted", text: "Ninguno todavía" })])
   );
+}
+
+// Diagnóstico: permite saber si las solicitudes del cliente llegan y por qué se descartan.
+function activityLines(activity) {
+  if (!activity) return ["—"];
+  const last = activity.last_event_at
+    ? `último evento hace ${Math.max(0, Math.round(Date.now() / 1000 - activity.last_event_at))}s`
+    : "aún no llega ningún evento";
+  const lines = [el("div", { text: `${activity.received} recibidos · ${activity.answered} respondidos · ${last}` })];
+  for (const [reason, count] of Object.entries(activity.dropped || {})) {
+    lines.push(el("div", { class: "st-rejected", text: `${count} descartados: ${reason}` }));
+  }
+  if (activity.unsent_replies) {
+    lines.push(el("div", { class: "st-rejected", text: `${activity.unsent_replies} respuestas sin relay conectado` }));
+  }
+  return lines;
 }
 
 function renderPending(pending) {
@@ -101,11 +122,17 @@ function requestCard(req) {
       el("dt", { text: "Identificador" }), el("dd", {}, el("code", { text: req.id })),
       el("dt", { text: "Cliente" }), el("dd", {}, el("code", { text: req.client_short, title: req.client })),
       el("dt", { text: "Método" }), el("dd", { text: req.method }),
+      el("dt", { text: "Sitio (tag u)" }), el("dd", { text: siteOf(req) }),
       el("dt", { text: "Kind" }), el("dd", { text: String(req.kind) }),
       el("dt", { text: "Contenido" }), el("dd", {}, el("pre", { text: req.content || "(vacío)" })),
       el("dt", { text: "Tags" }), el("dd", {}, el("pre", { text: JSON.stringify(req.tags, null, 1) })),
       el("dt", { text: "Creado" }), el("dd", { text: formatTime(req.created_at) })),
     el("div", { class: "row" }, approveBtn, rejectBtn));
+}
+
+function siteOf(req) {
+  const u = (req.tags || []).find((t) => Array.isArray(t) && t[0] === "u");
+  return u && typeof u[1] === "string" ? u[1] : "(no indicado)";
 }
 
 async function decide(id, action) {
@@ -147,6 +174,13 @@ $("lock-btn").addEventListener("click", async () => {
 });
 
 if ($("copy-bunker")) $("copy-bunker").addEventListener("click", (e) => bunkerUrl && copyText(bunkerUrl, e.target));
+if ($("reveal-secret")) {
+  $("reveal-secret").addEventListener("click", (e) => {
+    revealSecret = !revealSecret;
+    e.target.textContent = revealSecret ? "Ocultar secret" : "Mostrar secret";
+    refresh();
+  });
+}
 if ($("restart-btn")) {
   $("restart-btn").addEventListener("click", async () => {
     if (!confirm("Se generará una URL nueva y se desconectarán los clientes autorizados. ¿Continuar?")) return;

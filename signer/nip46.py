@@ -92,9 +92,41 @@ class Nip46Signer:
         if not params:
             raise ValueError("sign_event requires an event")
         unsigned = json.loads(params[0]) if isinstance(params[0], str) else params[0]
+        validate_unsigned(unsigned, self.pubkey)  # antes de mostrarlo para aprobación
         if not await self._approve(unsigned, client):
             raise PermissionError("user rejected the signature")
         return json.dumps(crypto.sign_event(self.keys, unsigned), ensure_ascii=False)
+
+
+MAX_EVENT_BYTES = 64 * 1024
+MAX_TAGS = 200
+
+
+def validate_unsigned(unsigned, signer_pubkey: str) -> None:
+    """Rechaza eventos malformados antes de pedir aprobación o firmar.
+
+    Sin esto, un cliente podría enviar tags/kind con tipos inesperados que la
+    interfaz mostraría de una forma y crypto.sign_event serializaría de otra.
+    """
+    if not isinstance(unsigned, dict):
+        raise ValueError("invalid event: expected a JSON object")
+    kind = unsigned.get("kind")
+    if not isinstance(kind, int) or isinstance(kind, bool) or not 0 <= kind <= 65535:
+        raise ValueError("invalid event: kind must be an integer between 0 and 65535")
+    if not isinstance(unsigned.get("content", ""), str):
+        raise ValueError("invalid event: content must be a string")
+    tags = unsigned.get("tags", [])
+    if (not isinstance(tags, list) or len(tags) > MAX_TAGS
+            or not all(isinstance(t, list) and t and all(isinstance(x, str) for x in t) for t in tags)):
+        raise ValueError("invalid event: tags must be a list of non-empty string lists")
+    created_at = unsigned.get("created_at")
+    if created_at is not None and (not isinstance(created_at, int) or isinstance(created_at, bool) or created_at < 0):
+        raise ValueError("invalid event: created_at must be a positive integer")
+    pubkey = unsigned.get("pubkey")
+    if pubkey not in (None, "", signer_pubkey):
+        raise ValueError("invalid event: pubkey does not match the signer")
+    if len(json.dumps(unsigned)) > MAX_EVENT_BYTES:
+        raise ValueError("invalid event: too large")
 
 
 def _error(req_id: str, message: str) -> dict:

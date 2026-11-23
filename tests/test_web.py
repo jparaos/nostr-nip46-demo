@@ -127,8 +127,9 @@ class VaultFlowTest(WebTestCase):
         self.assertEqual(status["pubkey"], created["pubkey"])
         url = status["signer"]["bunker_url"]
         self.assertRegex(url, rf"^bunker://{created['pubkey']}\?relay=wss%3A%2F%2Fa\.test&relay=wss%3A%2F%2Fb\.test&secret=[0-9a-f]{{32}}$")
-        self.assertEqual(status["signer"]["relays"], [{"url": "wss://a.test", "connected": True},
-                                                     {"url": "wss://b.test", "connected": False}])
+        self.assertEqual(status["signer"]["relays"], [{"url": "wss://a.test", "connected": True, "events": 0},
+                                                     {"url": "wss://b.test", "connected": False, "events": 0}])
+        self.assertEqual(status["signer"]["activity"]["received"], 0)
         # el nsec solo apareció en la respuesta de creación
         later = "\n".join(r.text for r in self.responses[1:])
         self.assertNotIn(created["nsec_backup"], later)

@@ -91,8 +91,9 @@ class ApprovalManager(ApprovalHandler):
     - cancel_all() rechaza todo lo pendiente (CANCELLED); se usa al detener el servicio.
     """
 
-    def __init__(self, timeout: float = 120.0, history_size: int = 50):
+    def __init__(self, timeout: float = 120.0, history_size: int = 50, max_pending: int = 20):
         self.timeout = timeout
+        self.max_pending = max_pending
         self._pending: dict[str, tuple[SignRequest, asyncio.Future[bool]]] = {}
         self._by_key: dict[tuple, str] = {}
         self._history: deque[SignRequest] = deque(maxlen=history_size)
@@ -114,6 +115,12 @@ class ApprovalManager(ApprovalHandler):
             tags=list(unsigned.get("tags") or []),
             created_at=unsigned.get("created_at"),
         )
+        if len(self._pending) >= self.max_pending:
+            # un cliente autorizado no puede inundar la cola: se rechaza sin mostrarla
+            request.status, request.reason, request.resolved_at = (
+                Status.REJECTED, "demasiadas solicitudes pendientes", time.time())
+            self._history.appendleft(request)
+            return False
         future: asyncio.Future[bool] = asyncio.get_running_loop().create_future()
         self._pending[request.id] = (request, future)
         self._by_key[key] = request.id

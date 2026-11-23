@@ -10,10 +10,12 @@ import asyncio
 import json
 import logging
 import secrets
+from collections import deque
 
 import websockets
 
 log = logging.getLogger("relay")
+SEEN_LIMIT = 4096  # ids de eventos recordados para no procesar duplicados entre relays
 
 
 class RelayPool:
@@ -23,6 +25,8 @@ class RelayPool:
         self.events: asyncio.Queue[dict] = asyncio.Queue()
         self._conns: dict[str, websockets.ClientConnection] = {}
         self._seen: set[str] = set()
+        self._seen_order: deque[str] = deque()  # acota la memoria de ids ya vistos
+        self.received: dict[str, int] = {url: 0 for url in urls}  # eventos recibidos por relay (diagnóstico)
         self._sub_id = secrets.token_hex(8)
         self._tasks: list[asyncio.Task] = []
         self.ready = asyncio.Event()
@@ -74,6 +78,12 @@ class RelayPool:
             await asyncio.sleep(delay)
             delay = min(delay * 2, 30)
 
+    def _remember(self, event_id: str) -> None:
+        self._seen.add(event_id)
+        self._seen_order.append(event_id)
+        if len(self._seen_order) > SEEN_LIMIT:
+            self._seen.discard(self._seen_order.popleft())
+
     def _on_message(self, url: str, raw: str) -> None:
         try:
             msg = json.loads(raw)
@@ -82,8 +92,11 @@ class RelayPool:
         kind = msg[0] if msg else None
         if kind == "EVENT" and len(msg) >= 3:
             event = msg[2]
-            if event.get("id") not in self._seen:
-                self._seen.add(event.get("id"))
+            event_id = event.get("id") if isinstance(event, dict) else None
+            if event_id:
+                self.received[url] = self.received.get(url, 0) + 1
+            if event_id and event_id not in self._seen:
+                self._remember(event_id)
                 self.events.put_nowait(event)
         elif kind == "EOSE":
             self.ready.set()

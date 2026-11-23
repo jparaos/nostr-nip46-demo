@@ -22,7 +22,9 @@ from .nip46 import Nip46Signer, bunker_url, new_secret
 from .relay import RelayPool
 
 NIP46_KIND = 24133
-DEFAULT_RELAYS = ["wss://relay.nsec.app", "wss://relay.damus.io", "wss://nos.lol"]
+MAX_EVENT_AGE = 600  # segundos de tolerancia para created_at de solicitudes NIP-46
+# Relays alcanzables verificados el 22-11-2026; relay.nsec.app no respondía desde la red de prueba.
+DEFAULT_RELAYS = ["wss://nos.lol", "wss://relay.primal.net", "wss://relay.damus.io"]
 
 log = logging.getLogger("service")
 
@@ -58,6 +60,15 @@ class SignerService:
         )
         self._consumer: asyncio.Task | None = None
         self._inflight: set[asyncio.Task] = set()
+        # Diagnóstico sin datos sensibles: permite ver si las solicitudes llegan y por qué se descartan.
+        self.activity = {"received": 0, "answered": 0, "unsent_replies": 0, "dropped": {}, "last_event_at": None}
+
+    def _drop(self, reason: str, event: dict) -> None:
+        dropped = self.activity["dropped"]
+        dropped[reason] = dropped.get(reason, 0) + 1
+        log.warning("evento descartado (%s): %s", reason, str(event.get("id", ""))[:8])
+        self.audit.write({"dir": "drop", "client": str(event.get("pubkey", "")), "reason": reason,
+                          "event_id": str(event.get("id", ""))[:16], "created_at": event.get("created_at")})
 
     @property
     def bunker_url(self) -> str:
@@ -107,15 +118,23 @@ class SignerService:
     async def process(self, event: dict) -> dict | None:
         """Valida, descifra, despacha y publica la respuesta. Retorna la respuesta NIP-46."""
         client = event.get("pubkey", "")
+        self.activity["received"] += 1
+        self.activity["last_event_at"] = time.time()
         if event.get("kind") != NIP46_KIND or not crypto.verify_event(event):
-            log.warning("evento descartado (kind o firma inválida): %s", str(event.get("id", ""))[:8])
+            self._drop("firma o kind inválido", event)
+            return None
+        if self.signer.pubkey not in [t[1] for t in event.get("tags", []) if len(t) > 1 and t[0] == "p"]:
+            self._drop("no dirigido a este firmante", event)
+            return None
+        if abs(time.time() - event.get("created_at", 0)) > MAX_EVENT_AGE:
+            # un relay puede reenviar eventos antiguos; también evita repetir solicitudes capturadas
+            self._drop("fuera de la ventana de tiempo", event)
             return None
         try:
             plaintext, scheme = crypto.decrypt(self.signer.keys, client, event["content"])
             request = json.loads(plaintext)
-        except Exception as exc:
-            log.warning("no se pudo descifrar/parsear solicitud de %s: %s", client[:8], exc)
-            self.audit.write({"dir": "in", "client": client, "error": "decrypt_failed"})
+        except Exception:
+            self._drop("no se pudo descifrar", event)
             return None
 
         method = request.get("method", "")
@@ -130,5 +149,10 @@ class SignerService:
             self.signer.keys, NIP46_KIND,
             crypto.encrypt(self.signer.keys, client, json.dumps(response), scheme), [["p", client]],
         )
-        await self.pool.publish(reply)
+        if await self.pool.publish(reply):
+            self.activity["answered"] += 1
+        else:
+            # ningún relay conectado: el cliente remoto nunca recibirá esta respuesta
+            self.activity["unsent_replies"] += 1
+            log.warning("respuesta a %s no enviada: ningún relay conectado", method)
         return response
